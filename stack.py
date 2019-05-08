@@ -37,19 +37,33 @@ def ext_pillar(minion_id, pillar, *args, **kwargs):
             cfgs = [cfgs]
         stack_config_files += cfgs
     for cfg in stack_config_files:
-        if not os.path.isfile(cfg):
+        cfg_path, params = _extract_cfg(cfg)
+        if not os.path.isfile(cfg_path):
             log.info(
-                'Ignoring pillar stack cfg "%s": file does not exist', cfg)
+                'Ignoring pillar stack cfg "%s": file does not exist', cfg_path)
             continue
-        stack = _process_stack_cfg(cfg, stack, minion_id, pillar)
+        default_strategy = params.get("default_strategy", "merge-last")
+        stack = _process_stack_cfg(cfg_path, stack, minion_id, pillar, default_strategy)
     return stack
+
+
+def _extract_cfg(cfg):
+    # Get the path of the config and any parameters.
+    if "?" not in cfg:
+        return cfg, {}
+    path, raw_params = cfg.split("?", 1)
+    params = {}
+    for param in raw_params.split("&"):
+        key, val = param.split("=")
+        params[key] = val
+    return path, params
 
 
 def _to_unix_slashes(path):
     return posixpath.join(*path.split(os.sep))
 
 
-def _process_stack_cfg(cfg, stack, minion_id, pillar):
+def _process_stack_cfg(cfg, stack, minion_id, pillar, default_strategy):
     log.debug('Config: %s', cfg)
     basedir, filename = os.path.split(cfg)
     jenv = Environment(loader=FileSystemLoader(basedir), extensions=['jinja2.ext.do', salt.utils.jinja.SerializerExtension])
@@ -85,7 +99,7 @@ def _process_stack_cfg(cfg, stack, minion_id, pillar):
                 log.info('Ignoring pillar stack template "%s": Can\'t parse '
                          'as a valid yaml dictionary', path)
                 continue
-            stack = _merge_dict(stack, obj)
+            stack = _merge_dict(stack, obj, default_strategy)
     return stack
 
 
@@ -101,8 +115,8 @@ def _cleanup(obj):
     return obj
 
 
-def _merge_dict(stack, obj):
-    strategy = obj.pop('__', 'merge-last')
+def _merge_dict(stack, obj, default_strategy="merge-last"):
+    strategy = obj.pop('__', default_strategy)
     if strategy not in strategies:
         raise Exception('Unknown strategy "{0}", should be one of {1}'.format(
             strategy, strategies))
@@ -120,13 +134,16 @@ def _merge_dict(stack, obj):
                     stack_k = stack[k]
                     stack[k] = _cleanup(v)
                     v = stack_k
+                    # Stop it getting double inverted later on.
+                    if default_strategy == "merge-first":
+                        default_strategy = "merge-last"
                 if type(stack[k]) != type(v):
                     log.debug('Force overwrite, types differ: \'%s\' != \'%s\'', stack[k], v)
                     stack[k] = _cleanup(v)
                 elif isinstance(v, dict):
-                    stack[k] = _merge_dict(stack[k], v)
+                    stack[k] = _merge_dict(stack[k], v, default_strategy)
                 elif isinstance(v, list):
-                    stack[k] = _merge_list(stack[k], v)
+                    stack[k] = _merge_list(stack[k], v, default_strategy)
                 else:
                     stack[k] = v
             else:
@@ -134,8 +151,8 @@ def _merge_dict(stack, obj):
         return stack
 
 
-def _merge_list(stack, obj):
-    strategy = 'merge-last'
+def _merge_list(stack, obj, default_strategy="merge-last"):
+    strategy = default_strategy
     if obj and isinstance(obj[0], dict) and '__' in obj[0]:
         strategy = obj[0]['__']
         del obj[0]

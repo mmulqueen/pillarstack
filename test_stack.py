@@ -39,6 +39,85 @@ class TestStack(unittest.TestCase):
                             'INSTEAD OF =>', after_yml,
                             ]))
 
+    def test_merge_first_explicit_top_level(self):
+        # This checks __ behaviour.
+        cur_stack = {
+            "flat": "First value",
+            "nested": {
+                "val": "First value nested",
+                "nested_again": {
+                    "val": 123
+                }
+            }
+        }
+        obj = {
+            "__": "merge-first",
+            "flat": "Shouldn't overwrite",
+            "flat_newval": "OK",
+            "nested": {
+                "val": "Shouldn't overwrite",
+                "newval": "OK",
+                "nested_again": {
+                    "val": 456,
+                    "newval": 678
+                }
+            }
+        }
+        expected = {
+            "flat": "First value",
+            "flat_newval": "OK",
+            "nested": {
+                "val": "First value nested",
+                "newval": "OK",
+                "nested_again": {
+                    "val": 123,
+                    "newval": 678
+                }
+            }
+        }
+        new_stack = stack._merge_dict(cur_stack, obj)
+        self.assertDictEqual(new_stack, expected)
+
+    def test_merge_first_with_default(self):
+        # This makes sure that we get the same effect as
+        # test_merge_first_explicit_top_level, but using
+        # default_strategy instead.
+        cur_stack = {
+            "flat": "First value",
+            "nested": {
+                "val": "First value nested",
+                "nested_again": {
+                    "val": 123
+                }
+            }
+        }
+        obj = {
+            "flat": "Shouldn't overwrite",
+            "flat_newval": "OK",
+            "nested": {
+                "val": "Shouldn't overwrite",
+                "newval": "OK",
+                "nested_again": {
+                    "val": 456,
+                    "newval": 678
+                }
+            }
+        }
+        expected = {
+            "flat": "First value",
+            "flat_newval": "OK",
+            "nested": {
+                "val": "First value nested",
+                "newval": "OK",
+                "nested_again": {
+                    "val": 123,
+                    "newval": 678
+                }
+            }
+        }
+        new_stack = stack._merge_dict(cur_stack, obj, default_strategy="merge-first")
+        self.assertDictEqual(new_stack, expected)
+
 
 if __name__ == '__main__':
     unittest.main()
