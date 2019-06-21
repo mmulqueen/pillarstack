@@ -232,12 +232,12 @@ The merging strategy can be set by including a dict in the form of:
     __: <merging strategy>
 
 If you want to use a different default merging strategy, you can do so in your
-salt master config by adding a parameter:
+salt master config:
 
 .. code:: yaml
 
-    ext_pillar:
-      - stack: /path/to/stack.cfg?default_strategy=merge-first
+    pillarstack:
+        default_strategy: merge-first
 
 as the first item of the dict or list.
 This allows fine grained control over the merging process.

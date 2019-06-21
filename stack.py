@@ -36,27 +36,14 @@ def ext_pillar(minion_id, pillar, *args, **kwargs):
         if not isinstance(cfgs, list):
             cfgs = [cfgs]
         stack_config_files += cfgs
-    for cfg in stack_config_files:
-        cfg_path, params = _extract_cfg(cfg)
+    for cfg_path in stack_config_files:
         if not os.path.isfile(cfg_path):
             log.info(
                 'Ignoring pillar stack cfg "%s": file does not exist', cfg_path)
             continue
-        default_strategy = params.get("default_strategy", "merge-last")
+        default_strategy = __opts__.get("pillarstack", {}).get("default_strategy", "merge-last")
         stack = _process_stack_cfg(cfg_path, stack, minion_id, pillar, default_strategy)
     return stack
-
-
-def _extract_cfg(cfg):
-    # Get the path of the config and any parameters.
-    if "?" not in cfg:
-        return cfg, {}
-    path, raw_params = cfg.split("?", 1)
-    params = {}
-    for param in raw_params.split("&"):
-        key, val = param.split("=")
-        params[key] = val
-    return path, params
 
 
 def _to_unix_slashes(path):
